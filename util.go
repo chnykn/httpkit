@@ -5,19 +5,20 @@
 package httpkit
 
 import (
-	"bytes"
 	"io"
 )
 
 type reqArgs struct {
-	URL           string
-	Method        string
-	Accept        string
-	Query         map[string]string
+	URL    string
+	Method string
+	Accept string
+	Query  map[string]string
+
+	ReqBody       io.Reader
 	ContentType   string
 	ContentLength int
-	ReqBody       io.Reader
-	RespBuff      *bytes.Buffer
+
+	RespPtr any
 }
 
 func newReqArgs(url string, method string, v ...any) *reqArgs {
@@ -30,7 +31,7 @@ func newReqArgs(url string, method string, v ...any) *reqArgs {
 		ContentType:   "",
 		ContentLength: 0,
 		ReqBody:       nil,
-		RespBuff:      nil,
+		RespPtr:       nil,
 	}
 
 	for _, vi := range v {
@@ -51,7 +52,7 @@ func newReqArgs(url string, method string, v ...any) *reqArgs {
 			res.ContentLength = vv.Length
 
 		case *RespBody:
-			res.RespBuff = vv.buff
+			res.RespPtr = vv.Ptr
 
 			//-----------------
 
@@ -70,7 +71,7 @@ func newReqArgs(url string, method string, v ...any) *reqArgs {
 			res.ContentLength = vv.Length
 
 		case RespBody:
-			res.RespBuff = vv.buff
+			res.RespPtr = vv.Ptr
 		}
 
 	}

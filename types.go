@@ -31,9 +31,10 @@ type ReqBody struct {
 	Length int
 }
 
-// RespBody Used to parse the JSON response in the response.
+// RespBody Used to parse the JSON response in the response.Body into a corresponding
+// object pointer (which must be a pointer type) after executing the request.
 type RespBody struct {
-	buff *bytes.Buffer
+	Ptr any //  *[]byte , *bytes.Buffer,  or pointer of other object
 }
 
 //===================================
@@ -74,6 +75,6 @@ func BufferReqBody(data bytes.Buffer) *ReqBody {
 
 //----------------------------------------
 
-func NewRespBody(buff *bytes.Buffer) *RespBody {
-	return &RespBody{buff: buff}
+func NewRespBody(ptr any) *RespBody {
+	return &RespBody{Ptr: ptr}
 }

@@ -5,9 +5,13 @@
 package httpkit
 
 import (
+	"bytes"
+	"encoding/json"
+	"encoding/xml"
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 )
 
 type BeforeReqFunc func(httpReq *http.Request) error
@@ -92,15 +96,34 @@ func (o *Client) doRequest(args *reqArgs) (int, error) {
 	defer response.Body.Close()
 	body, _ := io.ReadAll(response.Body)
 
-	//statusCode 200 201 204 都属于正确的
+	//statusCode 200 201 204
 	if (statusCode != http.StatusOK) && (statusCode != http.StatusCreated) && (statusCode != http.StatusNoContent) {
 		err = fmt.Errorf("netkit.doRequest ERR: status=%s, body=%s", response.Status, string(body))
 		return statusCode, err
 	}
 
-	//statusCode 只有200 ，才会有返回内容
-	if (statusCode == http.StatusOK) && (args.RespBuff != nil) {
-		args.RespBuff.Write(body)
+	//statusCode 200
+	if (statusCode == http.StatusOK) && (args.RespPtr != nil) {
+
+		//If the type is either *[]byte or *bytes.Buffer, return directly.
+		switch resp := args.RespPtr.(type) {
+		case *[]byte:
+			*resp = body
+			return statusCode, nil
+		case *bytes.Buffer:
+			resp.Write(body)
+			return statusCode, nil
+		}
+
+		//Unmarshal to args.result based on the Accept.
+		if strings.HasPrefix(args.Accept, JsonContentType) {
+			return statusCode, json.Unmarshal(body, args.RespPtr)
+		} else if strings.HasPrefix(args.Accept, XmlContentType) {
+			return statusCode, xml.Unmarshal(body, args.RespPtr)
+		} else {
+			// If it is neither JSON nor XML,
+			// there is no need to parse it into args.result.
+		}
 	}
 
 	return statusCode, nil
