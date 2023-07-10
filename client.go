@@ -51,10 +51,10 @@ func (o *Client) Request(url string, method string, v ...any) (int, error) {
 		switch vv := vi.(type) {
 
 		case *ReqAccept:
-			setHeaderAccecpt(req, vv.string)
+			setReqAccecpt(req, vv.string)
 
 		case *ReqQuery:
-			setUrlQuery(req, *vv)
+			setReqQuery(req, *vv)
 
 		case *ReqBody:
 			setReqBody(req, vv)
@@ -98,12 +98,12 @@ func (o *Client) Request(url string, method string, v ...any) (int, error) {
 			return statusCode, nil
 		}
 
-		accept := req.Header.Get(kHeaderAccept)
+		contentType := req.Header.Get(kHeaderContentType)
 
 		//Unmarshal to args.result based on the Accept.
-		if strings.HasPrefix(accept, JsonContentType) {
+		if strings.HasPrefix(contentType, JsonContentType) {
 			return statusCode, json.Unmarshal(respBody, respPtr)
-		} else if strings.HasPrefix(accept, XmlContentType) {
+		} else if strings.HasPrefix(contentType, XmlContentType) {
 			return statusCode, xml.Unmarshal(respBody, respPtr)
 		} else {
 			// If it is neither JSON nor XML,

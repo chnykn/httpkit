@@ -14,11 +14,11 @@ import (
 	"strconv"
 )
 
-func setHeaderAccecpt(req *http.Request, accept string) {
+func setReqAccecpt(req *http.Request, accept string) {
 	req.Header.Set(kHeaderAccept, accept)
 }
 
-func setUrlQuery(req *http.Request, query ReqQuery) {
+func setReqQuery(req *http.Request, query ReqQuery) {
 	q := req.URL.Query()
 	for k, v := range query {
 		q.Add(k, v)
