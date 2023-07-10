@@ -12,12 +12,13 @@ const (
 )
 
 const (
-	JsonContentType = "application/json"
-	XmlContentType  = "application/xml"
-	ZipContentType  = "application/zip"
+	JsonContentType   = "application/json"
+	XmlContentType    = "application/xml"
+	ZipContentType    = "application/zip"
+	StreamContentType = "application/octet-stream"
 )
 
 const (
-	headerAccept      = "Accept"
-	headerContentType = "Content-Type"
+	kHeaderAccept      = "Accept"
+	kHeaderContentType = "Content-Type"
 )

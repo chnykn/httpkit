@@ -30,63 +30,46 @@ func NewClient(beforeReq BeforeReqFunc) *Client {
 }
 
 //-----------------------------------------------
-/*
-	case consts.MethodGet, consts.MethodDelete:
-		httpReq = o.newRequest(args.URL, args.Method, args.Accept, "", nil)
-	case consts.MethodPost, consts.MethodPut:
-		httpReq = o.newRequest(args.URL, args.Method, args.Accept, args.ContentType, args.ReqBody)
-	default:
-		err := fmt.Errorf("netkit.doRequest ERR: unrecognized http request method '%s'", args.Method)
-		return -1, err
-	}
-*/
-func (o *Client) newRequest(args *reqArgs) (*http.Request, error) {
 
-	result, err := http.NewRequest(args.Method, args.URL, args.ReqBody)
-	if err != nil {
-		return nil, err
-	}
+func (o *Client) Request(url string, method string, v ...any) (int, error) {
 
-	if args.ReqBody != nil {
-		result.Header.Set(headerContentType, args.ContentType)
-		if args.ContentLength > 0 {
-			result.ContentLength = int64(args.ContentLength)
-		}
-	}
-
-	if args.Accept != "" {
-		result.Header.Set(headerAccept, args.Accept)
-	}
-
-	return result, nil
-}
-
-// return (requst response'StatusCode, error)
-func (o *Client) doRequest(args *reqArgs) (int, error) {
-
-	httpReq, err := o.newRequest(args)
+	req, err := http.NewRequest(method, url, nil)
 	if err != nil {
 		return -1, err
-	}
-
-	if len(args.Query) > 0 {
-		q := httpReq.URL.Query()
-		for k, v := range args.Query {
-			q.Add(k, v)
-		}
-		httpReq.URL.RawQuery = q.Encode()
 	}
 
 	if o.beforeReq != nil {
-		err = o.beforeReq(httpReq)
+		err = o.beforeReq(req)
 		if err != nil {
 			return -1, err
 		}
 	}
 
+	var respPtr any = nil
+
+	for _, vi := range v {
+		switch vv := vi.(type) {
+
+		case *ReqAccept:
+			setHeaderAccecpt(req, vv.string)
+
+		case *ReqQuery:
+			setUrlQuery(req, *vv)
+
+		case *ReqBody:
+			setReqBody(req, vv)
+
+		case *ReqForm:
+			setReqForm(req, vv)
+
+		case *RespBody:
+			respPtr = vv.Ptr
+		}
+	}
+
 	//-----------------
 
-	response, err := o.httpClient.Do(httpReq)
+	response, err := o.httpClient.Do(req)
 	if err != nil {
 		return 0, err
 	}
@@ -94,32 +77,34 @@ func (o *Client) doRequest(args *reqArgs) (int, error) {
 	var statusCode = response.StatusCode
 
 	defer response.Body.Close()
-	body, _ := io.ReadAll(response.Body)
+	respBody, _ := io.ReadAll(response.Body)
 
 	//statusCode 200 201 204
 	if (statusCode != http.StatusOK) && (statusCode != http.StatusCreated) && (statusCode != http.StatusNoContent) {
-		err = fmt.Errorf("netkit.doRequest ERR: status=%s, body=%s", response.Status, string(body))
+		err = fmt.Errorf("netkit.doRequest ERR: status=%s, body=%s", response.Status, string(respBody))
 		return statusCode, err
 	}
 
 	//statusCode 200
-	if (statusCode == http.StatusOK) && (args.RespPtr != nil) {
+	if (statusCode == http.StatusOK) && (respPtr != nil) {
 
 		//If the type is either *[]byte or *bytes.Buffer, return directly.
-		switch resp := args.RespPtr.(type) {
+		switch resp := respPtr.(type) {
 		case *[]byte:
-			*resp = body
+			*resp = respBody
 			return statusCode, nil
 		case *bytes.Buffer:
-			resp.Write(body)
+			resp.Write(respBody)
 			return statusCode, nil
 		}
 
+		accept := req.Header.Get(kHeaderAccept)
+
 		//Unmarshal to args.result based on the Accept.
-		if strings.HasPrefix(args.Accept, JsonContentType) {
-			return statusCode, json.Unmarshal(body, args.RespPtr)
-		} else if strings.HasPrefix(args.Accept, XmlContentType) {
-			return statusCode, xml.Unmarshal(body, args.RespPtr)
+		if strings.HasPrefix(accept, JsonContentType) {
+			return statusCode, json.Unmarshal(respBody, respPtr)
+		} else if strings.HasPrefix(accept, XmlContentType) {
+			return statusCode, xml.Unmarshal(respBody, respPtr)
 		} else {
 			// If it is neither JSON nor XML,
 			// there is no need to parse it into args.result.
@@ -144,32 +129,22 @@ Status code    Description
 
 //-----------------------------------------------
 
-// Request Get return (requst response'StatusCode, error)
-func (o *Client) Request(url string, method string, v ...any) (int, error) {
-	args := newReqArgs(url, method, v...)
-	return o.doRequest(args)
-}
-
 // Get return (requst response'StatusCode, error)
 func (o *Client) Get(url string, v ...any) (int, error) {
-	args := newReqArgs(url, MethodGet, v...)
-	return o.doRequest(args)
+	return o.Request(url, MethodGet, v...)
 }
 
 // Delete return (requst response'StatusCode, error)
 func (o *Client) Delete(url string, v ...any) (int, error) {
-	args := newReqArgs(url, MethodDelete, v...)
-	return o.doRequest(args)
+	return o.Request(url, MethodDelete, v...)
 }
 
 // Put return (requst response'StatusCode, error)
 func (o *Client) Put(url string, v ...any) (int, error) {
-	args := newReqArgs(url, MethodPut, v...)
-	return o.doRequest(args)
+	return o.Request(url, MethodPut, v...)
 }
 
 // Post return (requst response'StatusCode, error)
 func (o *Client) Post(url string, v ...any) (int, error) {
-	args := newReqArgs(url, MethodPost, v...)
-	return o.doRequest(args)
+	return o.Request(url, MethodPost, v...)
 }

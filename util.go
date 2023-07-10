@@ -5,22 +5,73 @@
 package httpkit
 
 import (
+	"bytes"
 	"io"
+	"mime/multipart"
+	"net/http"
+	"os"
+	"path/filepath"
+	"strconv"
 )
 
-type reqArgs struct {
-	URL    string
-	Method string
-	Accept string
-	Query  map[string]string
-
-	ReqBody       io.Reader
-	ContentType   string
-	ContentLength int
-
-	RespPtr any
+func setHeaderAccecpt(req *http.Request, accept string) {
+	req.Header.Set(kHeaderAccept, accept)
 }
 
+func setUrlQuery(req *http.Request, query ReqQuery) {
+	q := req.URL.Query()
+	for k, v := range query {
+		q.Add(k, v)
+	}
+	req.URL.RawQuery = q.Encode()
+}
+
+func setReqBody(req *http.Request, body *ReqBody) {
+	req.Body = io.NopCloser(body.Body)
+	req.ContentLength = body.ConentLength
+	req.Header.Set(kHeaderContentType, body.ConentType)
+}
+
+func setReqForm(req *http.Request, form *ReqForm) {
+	var buffer bytes.Buffer
+	bodyWriter := multipart.NewWriter(&buffer)
+
+	for key, value := range form.Fields {
+		_ = bodyWriter.WriteField(key, value)
+	}
+
+	n := 0
+	for i := 0; i < len(form.UploadFiles); i++ {
+		uploadFile := form.UploadFiles[i]
+
+		file, err := os.Open(uploadFile.FilePath)
+		if err != nil {
+			continue
+		}
+		defer file.Close()
+
+		if uploadFile.FieldName == "" {
+			n++
+			uploadFile.FieldName = "file" + strconv.Itoa(n)
+		}
+
+		fileName := filepath.Base(uploadFile.FilePath)
+		fileWriter, err := bodyWriter.CreateFormFile(uploadFile.FieldName, fileName)
+		if err != nil {
+			continue
+		}
+
+		io.Copy(fileWriter, file)
+	}
+	bodyWriter.Close()
+
+	req.Header.Set(kHeaderContentType, bodyWriter.FormDataContentType())
+	req.Body = io.NopCloser(&buffer)
+}
+
+//-------------------------------------------------------
+
+/*
 func newReqArgs(url string, method string, v ...any) *reqArgs {
 
 	res := &reqArgs{
@@ -38,37 +89,30 @@ func newReqArgs(url string, method string, v ...any) *reqArgs {
 		switch vv := vi.(type) {
 
 		case *ReqAccept:
-			res.Accept = vv.string
+			setAccecpt(res, vv.string)
 
 		case *ReqQuery:
-			res.Query = make(map[string]string)
-			for key, val := range *vv {
-				res.Query[key] = val
-			}
+			setQuery(res, *vv)
 
 		case *ReqBody:
-			res.ReqBody = vv.Body
-			res.ContentType = vv.Type
-			res.ContentLength = vv.Length
+			setReqBody(res, vv)
+
+		case *ReqForm:
+			setReqForm(res, vv)
 
 		case *RespBody:
 			res.RespPtr = vv.Ptr
 
-			//-----------------
+		//-----------------
 
 		case ReqAccept:
-			res.Accept = vv.string
+			setAccecpt(res, vv.string)
 
 		case ReqQuery:
-			res.Query = make(map[string]string)
-			for key, val := range vv {
-				res.Query[key] = val
-			}
+			setQuery(res, vv)
 
 		case ReqBody:
-			res.ReqBody = vv.Body
-			res.ContentType = vv.Type
-			res.ContentLength = vv.Length
+			setReqBody(res, &vv)
 
 		case RespBody:
 			res.RespPtr = vv.Ptr
@@ -78,6 +122,7 @@ func newReqArgs(url string, method string, v ...any) *reqArgs {
 
 	return res
 }
+*/
 
 //func getError(status int, respText []byte) error {
 //	errName, ok := statusErrorName[status]
