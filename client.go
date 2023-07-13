@@ -52,17 +52,27 @@ func (o *Client) Request(url string, method string, v ...any) (int, error) {
 
 		case *ReqAccept:
 			setReqAccecpt(req, vv.string)
+		case ReqAccept:
+			setReqAccecpt(req, vv.string)
 
 		case *ReqQuery:
 			setReqQuery(req, *vv)
+		case ReqQuery:
+			setReqQuery(req, vv)
 
 		case *ReqBody:
 			setReqBody(req, vv)
+		case ReqBody:
+			setReqBody(req, &vv)
 
 		case *ReqForm:
 			setReqForm(req, vv)
+		case ReqForm:
+			setReqForm(req, &vv)
 
 		case *RespBody:
+			respPtr = vv.Ptr
+		case RespBody:
 			respPtr = vv.Ptr
 		}
 	}

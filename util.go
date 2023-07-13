@@ -5,7 +5,6 @@
 package httpkit
 
 import (
-	"bytes"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -32,6 +31,46 @@ func setReqBody(req *http.Request, body *ReqBody) {
 	req.Header.Set(kHeaderContentType, body.ConentType)
 }
 
+func setReqForm(req *http.Request, form *ReqForm) {
+	pr, pw := io.Pipe()
+	bodyWriter := multipart.NewWriter(pw)
+
+	go func() {
+		for key, value := range form.Fields {
+			bodyWriter.WriteField(key, value)
+		}
+
+		n := 0
+		for _, ufile := range form.UploadFiles {
+
+			ofile, err := os.Open(ufile.FilePath)
+			if err != nil {
+				continue
+			}
+			defer ofile.Close()
+
+			if ufile.FieldName == "" {
+				n++
+				ufile.FieldName = "file" + strconv.Itoa(n)
+			}
+
+			fileName := filepath.Base(ufile.FilePath)
+			fileWriter, err := bodyWriter.CreateFormFile(ufile.FieldName, fileName)
+			if err != nil {
+				continue
+			}
+
+			io.Copy(fileWriter, ofile)
+		}
+		bodyWriter.Close()
+		pw.Close()
+	}()
+
+	req.Header.Set("Content-Type", bodyWriter.FormDataContentType())
+	req.Body = io.NopCloser(pr)
+}
+
+/*
 func setReqForm(req *http.Request, form *ReqForm) {
 	var buffer bytes.Buffer
 	bodyWriter := multipart.NewWriter(&buffer)
@@ -68,61 +107,9 @@ func setReqForm(req *http.Request, form *ReqForm) {
 	req.Header.Set(kHeaderContentType, bodyWriter.FormDataContentType())
 	req.Body = io.NopCloser(&buffer)
 }
+*/
 
 //-------------------------------------------------------
-
-/*
-func newReqArgs(url string, method string, v ...any) *reqArgs {
-
-	res := &reqArgs{
-		URL:           url,
-		Method:        method,
-		Accept:        JsonContentType,
-		Query:         nil,
-		ContentType:   "",
-		ContentLength: 0,
-		ReqBody:       nil,
-		RespPtr:       nil,
-	}
-
-	for _, vi := range v {
-		switch vv := vi.(type) {
-
-		case *ReqAccept:
-			setAccecpt(res, vv.string)
-
-		case *ReqQuery:
-			setQuery(res, *vv)
-
-		case *ReqBody:
-			setReqBody(res, vv)
-
-		case *ReqForm:
-			setReqForm(res, vv)
-
-		case *RespBody:
-			res.RespPtr = vv.Ptr
-
-		//-----------------
-
-		case ReqAccept:
-			setAccecpt(res, vv.string)
-
-		case ReqQuery:
-			setQuery(res, vv)
-
-		case ReqBody:
-			setReqBody(res, &vv)
-
-		case RespBody:
-			res.RespPtr = vv.Ptr
-		}
-
-	}
-
-	return res
-}
-*/
 
 //func getError(status int, respText []byte) error {
 //	errName, ok := statusErrorName[status]
